@@ -1,0 +1,12 @@
+fastapi
+uvicorn
+python-multipart
+numpy
+pillow
+pillow-heif
+google-generativeai
+python-dotenv
+trimesh
+scikit-image
+scipy
+anthropic
