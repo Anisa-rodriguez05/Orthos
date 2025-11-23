@@ -10,5 +10,4 @@ trimesh
 scikit-image
 scipy
 anthropic
-trimesh
-plotly
+
