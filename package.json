@@ -2,14 +2,14 @@
   "name": "orthos-main",
   "version": "1.0.0",
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev > server.log 2>&1",
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "dev:backend": "cd backend && source venv/bin/activate && python app.py",
+    "dev:backend": "source venv/bin/activate && python main.py > backend.log 2>&1",
     "dev:full": "concurrently \"npm run dev:backend\" \"npm run dev\"",
-    "install:backend": "cd backend && pip install -r requirements.txt",
-    "backend:setup": "cd backend && python -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
+    "install:backend": "pip install -r requirements.txt",
+    "backend:setup": "python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",

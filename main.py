@@ -4,6 +4,7 @@ import io
 import os
 import json
 import uvicorn
+import logging
 from fastapi import FastAPI, UploadFile, Form, File, Response
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -15,6 +16,22 @@ from pydantic import BaseModel
 
 # Load environment variables
 load_dotenv()
+
+# --- LOGGING SETUP ---
+# Create a custom logger
+logger = logging.getLogger("orthos_backend")
+logger.setLevel(logging.INFO)
+
+# Create handlers
+c_handler = logging.StreamHandler()
+c_handler.setLevel(logging.INFO)
+
+# Create formatters and add it to handlers
+log_format = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+c_handler.setFormatter(log_format)
+
+# Add handlers to the logger
+logger.addHandler(c_handler)
 
 # --- CORE LOGIC CLASS (Fallback) ---
 class ImageToSTLConverter:
@@ -115,26 +132,26 @@ class GeminiSTLPipeline:
     
     async def generate_stl(self, image_bytes: bytes) -> str:
         """Execute the full 4-step pipeline"""
-        print("\n=== STARTING GEMINI STL PIPELINE ===")
+        logger.info("=== STARTING GEMINI STL PIPELINE ===")
         
         # Step 1: Input & Ingestion
         image = self._step1_input_ingestion(image_bytes)
-        print("✓ Step 1: Input & Ingestion complete")
+        logger.info("✓ Step 1: Input & Ingestion complete")
         
         # Step 2: 2D Pre-processing (The Mask)
         mask, analysis = await self._step2_preprocessing(image)
-        print("✓ Step 2: 2D Pre-processing complete")
-        print(f"  Detected: {analysis.get('object_type', 'unknown')} object")
+        logger.info("✓ Step 2: 2D Pre-processing complete")
+        logger.info(f"  Detected: {analysis.get('object_type', 'unknown')} object")
         
         # Step 3: 3D Reconstruction (Voxelization)
         voxels = self._step3_voxelization(mask, analysis)
-        print("✓ Step 3: 3D Reconstruction (Voxelization) complete")
-        print(f"  Voxel grid: {voxels.shape}")
+        logger.info("✓ Step 3: 3D Reconstruction (Voxelization) complete")
+        logger.info(f"  Voxel grid: {voxels.shape}")
         
         # Step 4: Serialization & Export
         stl_string = self._step4_export(voxels)
-        print("✓ Step 4: Serialization & Export complete")
-        print("=== PIPELINE COMPLETE ===\n")
+        logger.info("✓ Step 4: Serialization & Export complete")
+        logger.info("=== PIPELINE COMPLETE ===")
         
         return stl_string
     
@@ -193,7 +210,7 @@ Be precise with dimensions. If unclear, estimate based on typical engineering sc
             return mask, analysis
             
         except Exception as e:
-            print(f"Gemini analysis failed: {e}, using fallback")
+            logger.error(f"Gemini analysis failed: {e}, using fallback")
             img_array = np.array(image.convert('L'))
             mask = img_array > 128
             analysis = {
@@ -280,7 +297,7 @@ Be precise with dimensions. If unclear, estimate based on typical engineering sc
             return export_data
             
         except Exception as e:
-            print(f"Mesh export failed: {e}")
+            logger.error(f"Mesh export failed: {e}")
             raise
 
 async def generate_stl_from_gemini(image_bytes: bytes, api_key: str) -> str:
@@ -301,6 +318,7 @@ app.add_middleware(
 
 @app.get("/")
 def health_check():
+    logger.info("Health check endpoint called")
     return {"status": "ok", "message": "STL Generator API is running"}
 
 @app.post("/api/generate-stl")
@@ -313,21 +331,22 @@ async def generate_stl_endpoint(
 ):
     try:
         image_bytes = await file.read()
-        print(f"Received file: {file.filename}, size: {len(image_bytes)} bytes")
-        print(f"Content type: {file.content_type}")
-        print(f"First 20 bytes (hex): {image_bytes[:20].hex()}")
+        logger.info(f"Received file: {file.filename}, size: {len(image_bytes)} bytes")
+        logger.info(f"Content type: {file.content_type}")
+        logger.info(f"First 20 bytes (hex): {image_bytes[:20].hex()}")
         
         if len(image_bytes) == 0:
+             logger.warning("Uploaded file is empty")
              return Response(content="Error: Uploaded file is empty", status_code=400)
 
         api_key = os.getenv("GEMINI_API_KEY")
         
         if api_key:
-            print("Using Gemini 4-Step Pipeline for generation...")
+            logger.info("Using Gemini 4-Step Pipeline for generation...")
             try:
                 stl_string = await generate_stl_from_gemini(image_bytes, api_key)
             except Exception as e:
-                print(f"Gemini pipeline failed: {e}, falling back to algorithmic generation")
+                logger.error(f"Gemini pipeline failed: {e}, falling back to algorithmic generation")
                 # Check if the error was due to invalid image
                 if "cannot identify image file" in str(e):
                     # If Gemini failed because it's not an image, fallback will likely fail too.
@@ -345,12 +364,12 @@ async def generate_stl_endpoint(
                     )
                     stl_string = converter.generate_stl()
                 except Exception as fallback_e:
-                    print(f"Fallback generation failed: {fallback_e}")
+                    logger.error(f"Fallback generation failed: {fallback_e}")
                     if "cannot identify image file" in str(fallback_e):
                         return Response(content="Error: Please upload PNG or JPG images only. HEIC format from iPhones is not supported.", status_code=400)
                     raise fallback_e
         else:
-            print("No API Key found, using algorithmic generation...")
+            logger.info("No API Key found, using algorithmic generation...")
             is_inverted = invert.lower() == 'true'
             try:
                 converter = ImageToSTLConverter(
@@ -374,11 +393,11 @@ async def generate_stl_endpoint(
             headers={"Content-Disposition": f'attachment; filename="{filename}"'}
         )
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
         import traceback
-        traceback.print_exc()
+        logger.error(traceback.format_exc())
         return Response(content=f"Error generating STL: {str(e)}", status_code=500)
 
 if __name__ == "__main__":
-    print("Starting Gemini-powered STL Generator API...")
+    logger.info("Starting Gemini-powered STL Generator API...")
     uvicorn.run(app, host="0.0.0.0", port=8000)
