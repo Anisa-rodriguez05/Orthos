@@ -51,15 +51,6 @@ STLs were tested on an Anycubic Vyper to ensure the prints slice cleanly and pro
 
 ⸻
 
-🚧 Challenges
-
-Building the entire system in 24 hours came with hurdles:
-	•	Noisy sketches: Shadows, wrinkles, and inconsistent lighting made contour detection tricky.
-	•	Broken shapes: Unclosed lines caused invalid geometry — fixed using AI-assisted contour repair.
-	•	Watertight STL: Early meshes had holes; we added strict checks to ensure all models were manifold and slicer-friendly.
-
-⸻
-
 What We Learned
 	•	Using generative vision models for repair instead of just image creation.
 	•	Understanding STL structure, triangle meshes, and normal vectors.
